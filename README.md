@@ -1,25 +1,17 @@
-# ydotool [![Build Status](https://github.com/ReimuNotMoe/ydotool/workflows/Build/badge.svg)](https://github.com/ReimuNotMoe/ydotool/actions/workflows/push_pr_build_cmake.yml) [![Release Status](https://github.com/ReimuNotMoe/ydotool/workflows/Release/badge.svg)](https://github.com/ReimuNotMoe/ydotool/actions/workflows/release_cmake.yml)
+##WORK IN PROGRESS USE AT YOUR OWN PERIL
 
 Generic Linux command-line automation tool (no X!)
 
 **`ydotool` is not limited to Wayland.** You can use it on anything as long as it accepts keyboard/mouse/whatever input. For example, X11, text console, "RetroArch OS", fbdev apps (fbterm/mplayer/SDL1/LittleVGL/Qt Embedded), etc.
 
-## 2024 Roadmap
-Our **ultra-lightweight** JavaScript runtime, *Resonance*, will be released in Q2 2024 in LGPL license.
-
-ydotool will then be rewritten in JavaScript afterwards, to enable more people to understand the code & contribute.
-
-**You have NO reason to reject this. The RAM consumption (RSS) will NOT exceed 1MB.**
-
 ## Important Note
 The man page is not always up to date. Please use `--help` to ensure correctness.
 
 ## ChangeLog
-This project is now refactored. (from v1.0.0)
+This project is now WIP switching to C++
 
 Changes:
-- Rewritten in pure C99
-- No external dependencies
+- Rewritten in C++
 - Uses a lot less memory & no dynamic memory allocation
 
 Breaking Changes:
