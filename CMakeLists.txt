@@ -4,11 +4,17 @@ project(ydotool++ CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -pedantic -Werror -D_GLIBCXX_DEBUG -lasn -fsanitize=undefined -fsanitize=address")
-set(CMAKE_LINKER_FLAGS_DEBUG "-fsanitize=address")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -Werror -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -D_GLIBCXX_DEBUG -fsanitize=undefined -fsanitize=address")
+set(CMAKE_LINKER_FLAGS "-fsanitize=address")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include(FetchContent)
+FetchContent_Declare(
+	argparse
+	GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
 
 # Include GNU install directory module to detect where to install
 # files on Linux/Unix systems (e.g., lib vs lib64)
@@ -27,10 +33,12 @@ set(SOURCE_FILES_CLIENT Client/ydotool.cpp Client/tool_click.cpp Client/tool_mou
 
 add_executable(ydotoold ${SOURCE_FILES_DAEMON})
 set_target_properties(ydotoold PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(ydotoold argparse)
 install(TARGETS ydotoold DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(ydotool ${SOURCE_FILES_CLIENT})
 set_target_properties(ydotool PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(ydotool argparse)
 install(TARGETS ydotool DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(Daemon)
