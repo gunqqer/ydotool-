@@ -35,8 +35,9 @@
 */
 
 #include <assert.h>
-#include <errno.h>
+#include <grp.h>
 #include <limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -44,7 +45,9 @@
 #include <string.h>
 #include <time.h>
 
-#include <getopt.h>
+#include <string>
+
+#include <argparse/argparse.hpp>
 
 #include <dirent.h>
 #include <dlfcn.h>
@@ -68,31 +71,31 @@
 
 #define SOCKET_PATH_LEN 108
 
-static char opt_socket_path[SOCKET_PATH_LEN] = "/tmp/.ydotool_socket";
-static char opt_socket_perm[16]              = "0600";
-static char opt_socket_own[16]               = "";
+static std::string opt_socket_path           = "/tmp/.ydotool_socket";
+static std::string opt_socket_permission     = "0600";
+static std::string opt_socket_owner          = "";
 
-static void show_help()
-{
-	puts("Usage: ydotoold [OPTION]...\n"
-	     "The ydotool Daemon.\n"
-	     "\n"
-	     "Options:\n"
-	     "  -p, --socket-path=PATH     Custom socket path\n"
-	     "  -P, --socket-perm=PERM     Socket permission (default 0600)\n"
-	     "  -o, --socket-own=UID:GID   Socket ownership\n"
-	     "  -m, --mouse-off            Disable mouse (EV_REL)\n"
-	     "  -k, --keyboard-off         Disable keyboard (EV_KEY)\n"
-	     "  -T, --touch-on             Enable touchscreen (EV_ABS)\n"
-	     "  -h, --help                 Display this help and exit\n"
-	     "  -V, --version              Show version information\n");
-}
+// static void show_help()
+//{
+// puts("Usage: ydotoold [OPTION]...\n"
+//"The ydotool Daemon.\n"
+//"\n"
+//"Options:\n"
+//"  -p, --socket-path=PATH     Custom socket path\n"
+//"  -P, --socket-perm=PERM     Socket permission (default 0600)\n"
+//"  -o, --socket-own=UID:GID   Socket ownership\n"
+//"  -m, --mouse-off            Disable mouse (EV_REL)\n"
+//"  -k, --keyboard-off         Disable keyboard (EV_KEY)\n"
+//"  -T, --touch-on             Enable touchscreen (EV_ABS)\n"
+//"  -h, --help                 Display this help and exit\n"
+//"  -V, --version              Show version information\n");
+//}
 
-static void show_version()
-{
-	puts("ydotoold version(or hash): ");
-	puts(VERSION);
-}
+// static void show_version()
+//{
+// puts("ydotoold version(or hash): ");
+// puts(VERSION);
+//}
 
 enum ydotool_uinput_setup_options
 {
@@ -668,7 +671,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 		    BTN_TRIGGER_HAPPY39,
 		    BTN_TRIGGER_HAPPY40};
 
-		for (int i = 0; i < sizeof(key_list) / sizeof(int); i++)
+		for (uint i = 0; i < sizeof(key_list) / sizeof(int); i++)
 		{
 			if (ioctl(fd, UI_SET_KEYBIT, key_list[i])) { fprintf(stderr, "UI_SET_KEYBIT %d failed\n", i); }
 		}
@@ -680,7 +683,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 
 		static const int rel_list[] = {REL_X, REL_Y, REL_Z, REL_WHEEL, REL_HWHEEL};
 
-		for (int i = 0; i < sizeof(rel_list) / sizeof(int); i++)
+		for (uint i = 0; i < sizeof(rel_list) / sizeof(int); i++)
 		{
 			if (ioctl(fd, UI_SET_RELBIT, rel_list[i])) { fprintf(stderr, "UI_SET_RELBIT %d failed\n", i); }
 		}
@@ -700,7 +703,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 		    ABS_PRESSURE,
 		    ABS_MT_PRESSURE};
 
-		for (int i = 0; i < sizeof(abs_list) / sizeof(int); i++)
+		for (uint i = 0; i < sizeof(abs_list) / sizeof(int); i++)
 		{
 			if (ioctl(fd, UI_SET_ABSBIT, abs_list[i])) { fprintf(stderr, "UI_SET_ABSBIT %d failed\n", i); }
 		}
@@ -708,7 +711,8 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 
 	static const struct uinput_setup usetup = {
 	    .id   = {.bustype = BUS_VIRTUAL, .vendor = 0x2333, .product = 0x6666, .version = 1},
-	    .name = "ydotoold virtual device"};
+	    .name = "ydotoold virtual device",
+	    .ff_effects_max{}};
 
 	if (ioctl(fd, UI_DEV_SETUP, &usetup))
 	{
@@ -726,71 +730,42 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 int main(int argc, char ** argv)
 {
 
-	char * env_xrd = getenv("XDG_RUNTIME_DIR");
+	// FIXME figure out whatever this was doing
+	// char * env_xrd = getenv("XDG_RUNTIME_DIR");
 
-	if (env_xrd) { snprintf(opt_socket_path, SOCKET_PATH_LEN - 1, "%s/.ydotool_socket", env_xrd); }
+	// if (env_xrd) { snprintf(opt_socket_path.c_str(), SOCKET_PATH_LEN - 1, "%s/.ydotool_socket", env_xrd); }
 
 	enum ydotool_uinput_setup_options opt_ui_setup = static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
 
-	while (1)
+	argparse::ArgumentParser program("ydotool++d", VERSION);
+	program.add_argument("--socket-path", "-P")
+	    .help("Set socket path")
+	    .nargs(1)
+	    .default_value(std::string("/tmp/.ydotool_socket"))
+	    .store_into(opt_socket_path);
+	program.add_argument("--socket-owner", "-o")
+	    .help("Set socket owner")
+	    .nargs(1)
+	    .default_value("")
+	    .store_into(opt_socket_owner);
+	program.add_argument("--socket-permission", "-p")
+	    .help("Set socket permissions")
+	    .nargs(1)
+	    .default_value(std::string("0600"))
+	    .store_into(opt_socket_permission);
+	program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag();
+	program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag();
+	program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag();
+
+	try
 	{
-		int c;
-
-		static struct option long_options[] = {
-		    {"help", no_argument, 0, 'h'},
-		    {"version", no_argument, 0, 'V'},
-		    {"socket-perm", required_argument, 0, 'P'},
-		    {"socket-own", required_argument, 0, 'o'},
-		    {"socket-path", required_argument, 0, 'p'},
-		    {"mouse-off", no_argument, 0, 'm'},
-		    {"keyboard-off", no_argument, 0, 'k'},
-		    {"touch-on", no_argument, 0, 'T'},
-		    {0, 0, 0, 0}};
-		/* getopt_long stores the option index here. */
-		int option_index = 0;
-
-		c = getopt_long(argc, argv, "hVp:P:o:mkT", long_options, &option_index);
-
-		/* Detect the end of the options. */
-		if (c == -1) break;
-
-		switch (c)
-		{
-		case 0:
-			/* If this option set a flag, do nothing else now. */
-			if (long_options[option_index].flag != 0) break;
-			printf("option %s", long_options[option_index].name);
-			if (optarg) printf(" with arg %s", optarg);
-			printf("\n");
-			break;
-		case 'p': strncpy(opt_socket_path, optarg, sizeof(opt_socket_path) - 1); break;
-
-		case 'P': strncpy(opt_socket_perm, optarg, sizeof(opt_socket_perm) - 1); break;
-
-		case 'o': strncpy(opt_socket_own, optarg, sizeof(opt_socket_perm) - 1); break;
-
-		case 'm': opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_REL); break;
-
-		case 'k': opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_KEY); break;
-
-		case 'T': opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup | ENABLE_ABS); break;
-
-		case 'h':
-			show_help();
-			exit(0);
-			break;
-
-		case 'V':
-			show_version();
-			exit(0);
-			break;
-
-		case '?':
-			/* getopt_long already printed an error message. */
-			break;
-
-		default: exit(2);
-		}
+		program.parse_args(argc, argv);
+	}
+	catch (const std::exception & err)
+	{
+		std::cerr << err.what() << std::endl;
+		std::cerr << program;
+		return 1;
 	}
 
 	if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
@@ -803,11 +778,11 @@ int main(int argc, char ** argv)
 		exit(2);
 	}
 
-	printf("Socket path: %s\n", opt_socket_path);
+	printf("Socket path: %s\n", opt_socket_path.c_str());
 
 	struct stat sbuf;
 
-	if (stat(opt_socket_path, &sbuf) == 0)
+	if (stat(opt_socket_path.c_str(), &sbuf) == 0)
 	{
 
 		int fd_sot = socket(AF_UNIX, SOCK_DGRAM, 0);
@@ -818,9 +793,9 @@ int main(int argc, char ** argv)
 			exit(2);
 		}
 
-		struct sockaddr_un sa = {.sun_family = AF_UNIX};
+		struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
 
-		strncpy(sa.sun_path, opt_socket_path, sizeof(sa.sun_path) - 1);
+		strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
 
 		if (connect(fd_sot, (const struct sockaddr *)&sa, sizeof(sa)))
 		{
@@ -828,7 +803,7 @@ int main(int argc, char ** argv)
 
 			puts("Removing old stale socket");
 
-			if (unlink(opt_socket_path))
+			if (unlink(opt_socket_path.c_str()))
 			{
 				perror("failed remove old stale socket");
 				exit(2);
@@ -849,9 +824,9 @@ int main(int argc, char ** argv)
 		exit(2);
 	}
 
-	struct sockaddr_un sa = {.sun_family = AF_UNIX};
+	struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
 
-	strncpy(sa.sun_path, opt_socket_path, sizeof(sa.sun_path) - 1);
+	strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
 
 	if (bind(fd_so, (const struct sockaddr *)&sa, sizeof(sa)))
 	{
@@ -859,35 +834,50 @@ int main(int argc, char ** argv)
 		exit(2);
 	}
 
-	if (chmod(opt_socket_path, strtol(opt_socket_perm, NULL, 8)))
+	if (chmod(opt_socket_path.c_str(), strtol(opt_socket_permission.c_str(), NULL, 8)))
 	{
 		perror("failed to change socket permission");
 		exit(2);
 	}
 
-	printf("Socket permission: %s\n", opt_socket_perm);
+	printf("Socket permission: %s\n", opt_socket_permission.c_str());
 
-	if (opt_socket_own[0])
+	if (!opt_socket_owner.empty())
 	{
-		char * gid_pos = strchr(opt_socket_own, ':');
-
-		if (!gid_pos)
+		size_t pos = opt_socket_owner.find(":");
+		if (pos == std::string::npos)
 		{
-			puts("invalid ownership specification");
-			exit(2);
+			std::cerr << "Owner format failure " << opt_socket_owner << "\n";
+			std::exit(2);
 		}
 
-		gid_pos++;
+		std::string user  = opt_socket_owner.substr(0, pos);
+		std::string group = opt_socket_owner.substr(pos + 1);
 
-		uid_t uid = strtol(opt_socket_own, NULL, 10);
-		gid_t gid = strtol(gid_pos, NULL, 10);
-
-		if (chown(opt_socket_path, uid, gid))
+		struct passwd * pwd = getpwnam(user.c_str());
+		if (pwd == nullptr)
 		{
-			perror("failed to change socket ownership");
-			exit(2);
+			std::cerr << "User not found: " << user << "\n";
+			std::exit(2);
+		}
+		uid_t uid = pwd->pw_uid;
+
+		struct group * grp = getgrnam(group.c_str());
+		if (grp == nullptr)
+		{
+			std::cerr << "Group not found: " << group << "\n";
+			std::exit(2);
+		}
+		gid_t gid = grp->gr_gid;
+
+		if (chown(opt_socket_path.c_str(), uid, gid) != 0)
+		{
+			std::cerr << "chown failure"
+			          << "\n";
+			std::exit(2);
 		}
 
+		// Yeah yeah, printf bad, FIXME later
 		printf("Socket ownership: UID=%d, GID=%d\n", uid, gid);
 	}
 
