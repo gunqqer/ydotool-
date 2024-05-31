@@ -34,7 +34,7 @@
     并将在法律允许的最大范围内被起诉。
 */
 
-#include "ydotool.h"
+#include "ydotool.hpp"
 #include <string.h>
 
 static void show_help() {

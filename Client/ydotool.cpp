@@ -34,7 +34,9 @@
     并将在法律允许的最大范围内被起诉。
 */
 
-#include "ydotool.h"
+#include "ydotool.hpp"
+
+#include <functional>
 
 #include <errno.h>
 #include <stdio.h>
@@ -46,9 +48,10 @@
 #define VERSION "unknown"
 #endif
 
+using toolPtr = std::function<int(int, char **)>;
 struct tool_def {
 	char name[16];
-	void *ptr;
+	toolPtr ptr;
 };
 
 int fd_daemon_socket = -1;
@@ -126,6 +129,12 @@ void uinput_emit(uint16_t type, uint16_t code, int32_t val, bool syn_report) {
 
 int main(int argc, char **argv) {
 
+	for (int i = 0; i < argc; i++)
+	{
+		printf("argv[%d]: %s ", i, argv[i]);
+	}
+	printf("\n");
+
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 'h'},
 		{"version", no_argument, 0, 'V'},
@@ -143,14 +152,16 @@ int main(int argc, char **argv) {
 				show_version();
 				exit(0);
 
-			default:
-				puts("Not a valid option\n");
-				show_help();
-				exit(1);
+			default: ;
+				/*puts("Not a valid option\n");*/
+				/*show_help();*/
+				/*exit(1);*/
 		}
 	}
 
-	int (*tool_main)(int argc, char **argv) = NULL;
+	printf("done\n");
+
+	toolPtr tool_main;
 
 	int tool_count = sizeof(tool_list) / sizeof(struct tool_def);
 
