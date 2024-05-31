@@ -10,3 +10,4 @@ ydotool
 ydotoold
 build/*
 compile_commands.json
+.cache/
