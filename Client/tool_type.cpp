@@ -220,7 +220,7 @@ static void show_help() {
 
 
 static void type_char(char c, bool delay) {
-	int kdef = ascii2keycode_map[c];
+	int kdef = ascii2keycode_map[static_cast<int>(c)];
 	if (kdef == -1) {
 		return;
 	}
