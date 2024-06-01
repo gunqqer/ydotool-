@@ -71,32 +71,6 @@
 
 #define SOCKET_PATH_LEN 108
 
-static std::string opt_socket_path           = "/tmp/.ydotool_socket";
-static std::string opt_socket_permission     = "0600";
-static std::string opt_socket_owner          = "";
-
-// static void show_help()
-//{
-// puts("Usage: ydotoold [OPTION]...\n"
-//"The ydotool Daemon.\n"
-//"\n"
-//"Options:\n"
-//"  -p, --socket-path=PATH     Custom socket path\n"
-//"  -P, --socket-perm=PERM     Socket permission (default 0600)\n"
-//"  -o, --socket-own=UID:GID   Socket ownership\n"
-//"  -m, --mouse-off            Disable mouse (EV_REL)\n"
-//"  -k, --keyboard-off         Disable keyboard (EV_KEY)\n"
-//"  -T, --touch-on             Enable touchscreen (EV_ABS)\n"
-//"  -h, --help                 Display this help and exit\n"
-//"  -V, --version              Show version information\n");
-//}
-
-// static void show_version()
-//{
-// puts("ydotoold version(or hash): ");
-// puts(VERSION);
-//}
-
 enum ydotool_uinput_setup_options
 {
 	ENABLE_KEY = (1 << 0),
@@ -111,6 +85,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 	{
 		if (ioctl(fd, UI_SET_EVBIT, EV_KEY)) { fprintf(stderr, "UI_SET_EVBIT %s failed\n", "EV_KEY"); }
 
+		// TODO move to other file
 		static const int key_list[] = {
 		    KEY_ESC,
 		    KEY_1,
@@ -737,6 +712,10 @@ int main(int argc, char ** argv)
 
 	enum ydotool_uinput_setup_options opt_ui_setup = static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
 
+	static std::string opt_socket_path;
+	static std::string opt_socket_permission;
+	static std::string opt_socket_owner;
+
 	argparse::ArgumentParser program("ydotool++d", VERSION);
 	program.add_argument("--socket-path", "-P")
 	    .help("Set socket path")
@@ -756,6 +735,7 @@ int main(int argc, char ** argv)
 	program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag();
 	program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag();
 	program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag();
+	// FIXME actually use these last flags
 
 	try
 	{
