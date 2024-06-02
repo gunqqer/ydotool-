@@ -6,7 +6,7 @@
 #define FLAG_UPPERCASE		0x80000000
 #define FLAG_CTRL           0x40000000
 
-inline static const int64_t ascii2keycode_map[128] = {
+constexpr int64_t ascii2keycode_map[128] = {
     // 00 - 0f
     -1,
     -1,
