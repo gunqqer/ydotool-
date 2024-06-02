@@ -69,8 +69,6 @@
 #define VERSION "unknown"
 #endif
 
-#define SOCKET_PATH_LEN 108
-
 enum ydotool_uinput_setup_options
 {
 	ENABLE_KEY = (1 << 0),
@@ -686,7 +684,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 
 	static const struct uinput_setup usetup = {
 	    .id   = {.bustype = BUS_VIRTUAL, .vendor = 0x2333, .product = 0x6666, .version = 1},
-	    .name = "ydotoold virtual device",
+	    .name = "ydotool++d virtual device",
 	    .ff_effects_max{}};
 
 	if (ioctl(fd, UI_DEV_SETUP, &usetup))
@@ -705,71 +703,108 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 int main(int argc, char ** argv)
 {
 
-	// FIXME figure out whatever this was doing
-	// char * env_xrd = getenv("XDG_RUNTIME_DIR");
-
-	// if (env_xrd) { snprintf(opt_socket_path.c_str(), SOCKET_PATH_LEN - 1, "%s/.ydotool_socket", env_xrd); }
-
-	enum ydotool_uinput_setup_options opt_ui_setup = static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
-
 	static std::string opt_socket_path;
-	static std::string opt_socket_permission;
-	static std::string opt_socket_owner;
 
-	argparse::ArgumentParser program("ydotool++d", VERSION);
-	program.add_argument("--socket-path", "-P")
-	    .help("Set socket path")
-	    .nargs(1)
-	    .default_value(std::string("/tmp/.ydotool_socket"))
-	    .store_into(opt_socket_path);
-	program.add_argument("--socket-owner", "-o")
-	    .help("Set socket owner")
-	    .nargs(1)
-	    .default_value("")
-	    .store_into(opt_socket_owner);
-	program.add_argument("--socket-permission", "-p")
-	    .help("Set socket permissions")
-	    .nargs(1)
-	    .default_value(std::string("0600"))
-	    .store_into(opt_socket_permission);
-	program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag();
-	program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag();
-	program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag();
-	// FIXME actually use these last flags
-
-	try
+	// TODO make this do something as the argparse default overrides this
+	char * env_xrd = getenv("XDG_RUNTIME_DIR");
+	if (env_xrd)
 	{
-		program.parse_args(argc, argv);
-	}
-	catch (const std::exception & err)
-	{
-		std::cerr << err.what() << std::endl;
-		std::cerr << program;
-		return 1;
+		opt_socket_path = env_xrd;
+		opt_socket_path += "/ydotool_socket";
 	}
 
-	if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
+		enum ydotool_uinput_setup_options opt_ui_setup =
+		    static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
 
-	int fd_ui = open("/dev/uinput", O_WRONLY);
+		static std::string opt_socket_permission;
+		static std::string opt_socket_owner;
+		static bool disableMouse{false};
+		static bool disableKeyboard{false};
+		static bool enableTouch{true};
 
-	if (fd_ui < 0)
-	{
-		perror("failed to open uinput device");
-		exit(2);
-	}
+		argparse::ArgumentParser program("ydotool++d", VERSION);
+		program.add_argument("--socket-path", "-P")
+		    .help("Set socket path")
+		    .default_value(std::string("/tmp/.ydotool_socket"))
+		    .store_into(opt_socket_path);
+		program.add_argument("--socket-owner", "-o")
+		    .help("Set socket owner")
+		    .default_value("")
+		    .implicit_value(getuid() + getgid())
+		    .store_into(opt_socket_owner);
+		program.add_argument("--socket-permission", "-p")
+		    .help("Set socket permissions")
+		    .default_value(std::string("0600"))
+		    .store_into(opt_socket_permission);
+		program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag().store_into(disableMouse);
+		program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag().store_into(disableKeyboard);
+		program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag().store_into(enableTouch);
+		// FIXME actually use these last flags
 
-	printf("Socket path: %s\n", opt_socket_path.c_str());
-
-	struct stat sbuf;
-
-	if (stat(opt_socket_path.c_str(), &sbuf) == 0)
-	{
-
-		int fd_sot = socket(AF_UNIX, SOCK_DGRAM, 0);
-
-		if (fd_sot < 0)
+		try
 		{
-			perror("failed to create socket for daemon collision detection");
+			program.parse_args(argc, argv);
+		}
+		catch (const std::exception & err)
+		{
+			std::cerr << err.what() << std::endl;
+			std::cerr << program;
+			return 1;
+		}
+
+		if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
+
+		int fd_ui = open("/dev/uinput", O_WRONLY);
+
+		if (fd_ui < 0)
+		{
+			perror("failed to open uinput device");
+			exit(2);
+		}
+
+		printf("Socket path: %s\n", opt_socket_path.c_str());
+
+		struct stat sbuf;
+
+		if (stat(opt_socket_path.c_str(), &sbuf) == 0)
+		{
+
+			int fd_sot = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+			if (fd_sot < 0)
+			{
+				perror("failed to create socket for daemon collision detection");
+				exit(2);
+			}
+
+			struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
+
+			strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
+
+			if (connect(fd_sot, (const struct sockaddr *)&sa, sizeof(sa)))
+			{
+				close(fd_sot);
+
+				puts("Removing old stale socket");
+
+				if (unlink(opt_socket_path.c_str()))
+				{
+					perror("failed remove old stale socket");
+					exit(2);
+				}
+			}
+			else
+			{
+				puts("error: Another ydotoold is running with the same socket.");
+				exit(2);
+			}
+		}
+
+		int fd_so = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+		if (fd_so < 0)
+		{
+			perror("failed to create socket");
 			exit(2);
 		}
 
@@ -777,127 +812,96 @@ int main(int argc, char ** argv)
 
 		strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
 
-		if (connect(fd_sot, (const struct sockaddr *)&sa, sizeof(sa)))
+		if (bind(fd_so, (const struct sockaddr *)&sa, sizeof(sa)))
 		{
-			close(fd_sot);
-
-			puts("Removing old stale socket");
-
-			if (unlink(opt_socket_path.c_str()))
-			{
-				perror("failed remove old stale socket");
-				exit(2);
-			}
-		}
-		else
-		{
-			puts("error: Another ydotoold is running with the same socket.");
+			perror("failed to bind socket");
 			exit(2);
 		}
-	}
 
-	int fd_so = socket(AF_UNIX, SOCK_DGRAM, 0);
-
-	if (fd_so < 0)
-	{
-		perror("failed to create socket");
-		exit(2);
-	}
-
-	struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
-
-	strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
-
-	if (bind(fd_so, (const struct sockaddr *)&sa, sizeof(sa)))
-	{
-		perror("failed to bind socket");
-		exit(2);
-	}
-
-	if (chmod(opt_socket_path.c_str(), strtol(opt_socket_permission.c_str(), NULL, 8)))
-	{
-		perror("failed to change socket permission");
-		exit(2);
-	}
-
-	printf("Socket permission: %s\n", opt_socket_permission.c_str());
-
-	if (!opt_socket_owner.empty())
-	{
-		size_t pos = opt_socket_owner.find(":");
-		if (pos == std::string::npos)
+		if (chmod(opt_socket_path.c_str(), strtol(opt_socket_permission.c_str(), NULL, 8)))
 		{
-			std::cerr << "Owner format failure " << opt_socket_owner << "\n";
-			std::exit(2);
+			perror("failed to change socket permission");
+			exit(2);
 		}
 
-		std::string user  = opt_socket_owner.substr(0, pos);
-		std::string group = opt_socket_owner.substr(pos + 1);
+		printf("Socket permission: %s\n", opt_socket_permission.c_str());
 
-		struct passwd * pwd = getpwnam(user.c_str());
-		if (pwd == nullptr)
+		if (!opt_socket_owner.empty())
 		{
-			std::cerr << "User not found: " << user << "\n";
-			std::exit(2);
-		}
-		uid_t uid = pwd->pw_uid;
-
-		struct group * grp = getgrnam(group.c_str());
-		if (grp == nullptr)
-		{
-			std::cerr << "Group not found: " << group << "\n";
-			std::exit(2);
-		}
-		gid_t gid = grp->gr_gid;
-
-		if (chown(opt_socket_path.c_str(), uid, gid) != 0)
-		{
-			std::cerr << "chown failure"
-			          << "\n";
-			std::exit(2);
-		}
-
-		// Yeah yeah, printf bad, FIXME later
-		printf("Socket ownership: UID=%d, GID=%d\n", uid, gid);
-	}
-
-	uinput_setup(fd_ui, opt_ui_setup);
-
-	sleep(1);
-
-	const char * xinput_path = "/usr/bin/xinput";
-
-	if (getenv("DISPLAY"))
-	{
-		if (stat(xinput_path, &sbuf) == 0)
-		{
-			pid_t npid = vfork();
-
-			if (npid == 0)
+			size_t pos = opt_socket_owner.find(":");
+			if (pos == std::string::npos)
 			{
-				execl(
-				    xinput_path,
-				    "xinput",
-				    "--set-prop",
-				    "pointer:ydotoold virtual device",
-				    "libinput Accel Profile Enabled",
-				    "0,",
-				    "1",
-				    NULL);
-				perror("failed to run xinput command");
-				_exit(2);
+				std::cerr << "Owner format failure " << opt_socket_owner << "\n";
+				std::exit(2);
 			}
-			else if (npid == -1) { perror("failed to fork"); }
+
+			std::string user  = opt_socket_owner.substr(0, pos);
+			std::string group = opt_socket_owner.substr(pos + 1);
+
+			struct passwd * pwd = getpwnam(user.c_str());
+			if (pwd == nullptr)
+			{
+				std::cerr << "User not found: " << user << "\n";
+				std::exit(2);
+			}
+			uid_t uid = pwd->pw_uid;
+
+			struct group * grp = getgrnam(group.c_str());
+			if (grp == nullptr)
+			{
+				std::cerr << "Group not found: " << group << "\n";
+				std::exit(2);
+			}
+			gid_t gid = grp->gr_gid;
+
+			if (chown(opt_socket_path.c_str(), uid, gid) != 0)
+			{
+				std::cerr << "chown failure"
+				          << "\n";
+				std::exit(2);
+			}
+
+			// Yeah yeah, printf bad, FIXME later
+			printf("Socket ownership: UID=%d, GID=%d\n", uid, gid);
 		}
-		else { printf("xinput command not found in `%s', not disabling mouser pointer acceleration", xinput_path); }
+
+		uinput_setup(fd_ui, opt_ui_setup);
+
+		sleep(1);
+
+		const char * xinput_path = "/usr/bin/xinput";
+
+		if (getenv("DISPLAY"))
+		{
+			if (stat(xinput_path, &sbuf) == 0)
+			{
+				pid_t npid = vfork();
+
+				if (npid == 0)
+				{
+					execl(
+					    xinput_path,
+					    "xinput",
+					    "--set-prop",
+					    "pointer:ydotoold virtual device",
+					    "libinput Accel Profile Enabled",
+					    "0,",
+					    "1",
+					    NULL);
+					perror("failed to run xinput command");
+					_exit(2);
+				}
+				else if (npid == -1) { perror("failed to fork"); }
+			}
+			else { printf("xinput command not found in `%s', not disabling mouser pointer acceleration", xinput_path); }
+		}
+
+		puts("READY");
+
+		struct input_event uev;
+
+		while (1)
+		{
+			if (recv(fd_so, &uev, sizeof(uev), 0) == sizeof(uev)) { write(fd_ui, &uev, sizeof(uev)); }
+		}
 	}
-
-	puts("READY");
-
-	struct input_event uev;
-
-	while (1)
-	{
-		if (recv(fd_so, &uev, sizeof(uev), 0) == sizeof(uev)) { write(fd_ui, &uev, sizeof(uev)); }
-	}
-}
