@@ -713,37 +713,38 @@ int main(int argc, char ** argv)
 		opt_socket_path += "/ydotool_socket";
 	}
 
-		enum ydotool_uinput_setup_options opt_ui_setup =
-		    static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
+	enum ydotool_uinput_setup_options opt_ui_setup = static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
 
-		static std::string opt_socket_permission;
-		static std::string opt_socket_owner;
-		static bool disableMouse{false};
-		static bool disableKeyboard{false};
-		static bool enableTouch{true};
+	static std::string opt_socket_permission;
+	static std::string opt_socket_owner;
+	static bool disableMouse{false};
+	static bool disableKeyboard{false};
+	static bool enableTouch{true};
 
-		argparse::ArgumentParser program("ydotool++d", VERSION);
-		program.add_argument("--socket-path", "-P")
-		    .help("Set socket path")
-		    .default_value(std::string("/tmp/.ydotool_socket"))
-		    .store_into(opt_socket_path);
-		program.add_argument("--socket-owner", "-o")
-		    .help("Set socket owner")
-		    .default_value("")
-		    .implicit_value(getuid() + getgid())
-		    .store_into(opt_socket_owner);
-		program.add_argument("--socket-permission", "-p")
-		    .help("Set socket permissions")
-		    .default_value(std::string("0600"))
-		    .store_into(opt_socket_permission);
-		program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag().store_into(disableMouse);
-		program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag().store_into(disableKeyboard);
-		program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag().store_into(enableTouch);
-		// FIXME actually use these last flags
+	argparse::ArgumentParser program("ydotool++d", VERSION);
+	program.add_argument("--socket-path", "-P")
+	    .help("Set socket path")
+	    .nargs(1)
+	    .default_value(std::string("/tmp/.ydotool_socket"))
+	    .store_into(opt_socket_path);
+	program.add_argument("--socket-owner", "-o")
+	    .help("Set socket owner")
+	    .nargs(1)
+	    .default_value("")
+	    .implicit_value(getuid() + getgid())
+	    .store_into(opt_socket_owner);
+	program.add_argument("--socket-permission", "-p")
+	    .help("Set socket permissions")
+	    .nargs(1)
+	    .default_value(std::string("0600"))
+	    .store_into(opt_socket_permission);
+	program.add_argument("--disable-mouse", "-m").help("Disable mouse").flag().store_into(disableMouse);
+	program.add_argument("--disable-keyboard", "-k").help("Disable keyboard").flag().store_into(disableKeyboard);
+	program.add_argument("--enable-touch", "-t").help("Enable touchscreen").flag().store_into(enableTouch);
 
-		try
-		{
-			program.parse_args(argc, argv);
+	try
+	{
+		program.parse_args(argc, argv);
 		}
 		catch (const std::exception & err)
 		{
@@ -752,9 +753,13 @@ int main(int argc, char ** argv)
 			return 1;
 		}
 
-		if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
+	    if (disableMouse) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_REL); }
+	    if (disableKeyboard) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_KEY); }
+	    if (enableTouch) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup | ENABLE_ABS); }
 
-		int fd_ui = open("/dev/uinput", O_WRONLY);
+	    if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
+
+	    int fd_ui = open("/dev/uinput", O_WRONLY);
 
 		if (fd_ui < 0)
 		{
@@ -856,9 +861,9 @@ int main(int argc, char ** argv)
 
 			if (chown(opt_socket_path.c_str(), uid, gid) != 0)
 			{
-				std::cerr << "chown failure"
-				          << "\n";
-				std::exit(2);
+			    std::cerr << "chown failure"
+			              << "\n";
+			    std::exit(2);
 			}
 
 			// Yeah yeah, printf bad, FIXME later
@@ -879,16 +884,16 @@ int main(int argc, char ** argv)
 
 				if (npid == 0)
 				{
-					execl(
-					    xinput_path,
-					    "xinput",
-					    "--set-prop",
-					    "pointer:ydotoold virtual device",
-					    "libinput Accel Profile Enabled",
-					    "0,",
-					    "1",
-					    NULL);
-					perror("failed to run xinput command");
+				    execl(
+				        xinput_path,
+				        "xinput",
+				        "--set-prop",
+				        "pointer:ydotoold virtual device",
+				        "libinput Accel Profile Enabled",
+				        "0,",
+				        "1",
+				        NULL);
+				    perror("failed to run xinput command");
 					_exit(2);
 				}
 				else if (npid == -1) { perror("failed to fork"); }
