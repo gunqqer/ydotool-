@@ -745,71 +745,40 @@ int main(int argc, char ** argv)
 	try
 	{
 		program.parse_args(argc, argv);
-		}
-		catch (const std::exception & err)
+	}
+	catch (const std::exception & err)
+	{
+		std::cerr << err.what() << std::endl;
+		std::cerr << program;
+		return 1;
+	}
+
+	if (disableMouse) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_REL); }
+	if (disableKeyboard) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_KEY); }
+	if (enableTouch) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup | ENABLE_ABS); }
+
+	if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
+
+	int fd_ui = open("/dev/uinput", O_WRONLY);
+
+	if (fd_ui < 0)
+	{
+		perror("failed to open uinput device");
+		exit(2);
+	}
+
+	printf("Socket path: %s\n", opt_socket_path.c_str());
+
+	struct stat sbuf;
+
+	if (stat(opt_socket_path.c_str(), &sbuf) == 0)
+	{
+
+		int fd_sot = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+		if (fd_sot < 0)
 		{
-			std::cerr << err.what() << std::endl;
-			std::cerr << program;
-			return 1;
-		}
-
-	    if (disableMouse) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_REL); }
-	    if (disableKeyboard) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup & ~ENABLE_KEY); }
-	    if (enableTouch) { opt_ui_setup = static_cast<ydotool_uinput_setup_options>(opt_ui_setup | ENABLE_ABS); }
-
-	    if (getuid() || getegid()) { puts("You're advised to run this program as root, or YMMV."); }
-
-	    int fd_ui = open("/dev/uinput", O_WRONLY);
-
-		if (fd_ui < 0)
-		{
-			perror("failed to open uinput device");
-			exit(2);
-		}
-
-		printf("Socket path: %s\n", opt_socket_path.c_str());
-
-		struct stat sbuf;
-
-		if (stat(opt_socket_path.c_str(), &sbuf) == 0)
-		{
-
-			int fd_sot = socket(AF_UNIX, SOCK_DGRAM, 0);
-
-			if (fd_sot < 0)
-			{
-				perror("failed to create socket for daemon collision detection");
-				exit(2);
-			}
-
-			struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
-
-			strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
-
-			if (connect(fd_sot, (const struct sockaddr *)&sa, sizeof(sa)))
-			{
-				close(fd_sot);
-
-				puts("Removing old stale socket");
-
-				if (unlink(opt_socket_path.c_str()))
-				{
-					perror("failed remove old stale socket");
-					exit(2);
-				}
-			}
-			else
-			{
-				puts("error: Another ydotoold is running with the same socket.");
-				exit(2);
-			}
-		}
-
-		int fd_so = socket(AF_UNIX, SOCK_DGRAM, 0);
-
-		if (fd_so < 0)
-		{
-			perror("failed to create socket");
+			perror("failed to create socket for daemon collision detection");
 			exit(2);
 		}
 
@@ -817,96 +786,127 @@ int main(int argc, char ** argv)
 
 		strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
 
-		if (bind(fd_so, (const struct sockaddr *)&sa, sizeof(sa)))
+		if (connect(fd_sot, (const struct sockaddr *)&sa, sizeof(sa)))
 		{
-			perror("failed to bind socket");
+			close(fd_sot);
+
+			puts("Removing old stale socket");
+
+			if (unlink(opt_socket_path.c_str()))
+			{
+				perror("failed remove old stale socket");
+				exit(2);
+			}
+		}
+		else
+		{
+			puts("error: Another ydotoold is running with the same socket.");
 			exit(2);
-		}
-
-		if (chmod(opt_socket_path.c_str(), strtol(opt_socket_permission.c_str(), NULL, 8)))
-		{
-			perror("failed to change socket permission");
-			exit(2);
-		}
-
-		printf("Socket permission: %s\n", opt_socket_permission.c_str());
-
-		if (!opt_socket_owner.empty())
-		{
-			size_t pos = opt_socket_owner.find(":");
-			if (pos == std::string::npos)
-			{
-				std::cerr << "Owner format failure " << opt_socket_owner << "\n";
-				std::exit(2);
-			}
-
-			std::string user  = opt_socket_owner.substr(0, pos);
-			std::string group = opt_socket_owner.substr(pos + 1);
-
-			struct passwd * pwd = getpwnam(user.c_str());
-			if (pwd == nullptr)
-			{
-				std::cerr << "User not found: " << user << "\n";
-				std::exit(2);
-			}
-			uid_t uid = pwd->pw_uid;
-
-			struct group * grp = getgrnam(group.c_str());
-			if (grp == nullptr)
-			{
-				std::cerr << "Group not found: " << group << "\n";
-				std::exit(2);
-			}
-			gid_t gid = grp->gr_gid;
-
-			if (chown(opt_socket_path.c_str(), uid, gid) != 0)
-			{
-			    std::cerr << "chown failure"
-			              << "\n";
-			    std::exit(2);
-			}
-
-			// Yeah yeah, printf bad, FIXME later
-			printf("Socket ownership: UID=%d, GID=%d\n", uid, gid);
-		}
-
-		uinput_setup(fd_ui, opt_ui_setup);
-
-		sleep(1);
-
-		const char * xinput_path = "/usr/bin/xinput";
-
-		if (getenv("DISPLAY"))
-		{
-			if (stat(xinput_path, &sbuf) == 0)
-			{
-				pid_t npid = vfork();
-
-				if (npid == 0)
-				{
-				    execl(
-				        xinput_path,
-				        "xinput",
-				        "--set-prop",
-				        "pointer:ydotoold virtual device",
-				        "libinput Accel Profile Enabled",
-				        "0,",
-				        "1",
-				        NULL);
-				    perror("failed to run xinput command");
-					_exit(2);
-				}
-				else if (npid == -1) { perror("failed to fork"); }
-			}
-			else { printf("xinput command not found in `%s', not disabling mouser pointer acceleration", xinput_path); }
-		}
-
-		puts("READY");
-
-		struct input_event uev;
-
-		while (1)
-		{
-			if (recv(fd_so, &uev, sizeof(uev), 0) == sizeof(uev)) { write(fd_ui, &uev, sizeof(uev)); }
 		}
 	}
+
+	int fd_so = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+	if (fd_so < 0)
+	{
+		perror("failed to create socket");
+		exit(2);
+	}
+
+	struct sockaddr_un sa = {.sun_family = AF_UNIX, .sun_path{}};
+
+	strncpy(sa.sun_path, opt_socket_path.c_str(), sizeof(sa.sun_path) - 1);
+
+	if (bind(fd_so, (const struct sockaddr *)&sa, sizeof(sa)))
+	{
+		perror("failed to bind socket");
+		exit(2);
+	}
+
+	if (chmod(opt_socket_path.c_str(), strtol(opt_socket_permission.c_str(), NULL, 8)))
+	{
+		perror("failed to change socket permission");
+		exit(2);
+	}
+
+	printf("Socket permission: %s\n", opt_socket_permission.c_str());
+
+	if (!opt_socket_owner.empty())
+	{
+		size_t pos = opt_socket_owner.find(":");
+		if (pos == std::string::npos)
+		{
+			std::cerr << "Owner format failure " << opt_socket_owner << "\n";
+			std::exit(2);
+		}
+
+		std::string user  = opt_socket_owner.substr(0, pos);
+		std::string group = opt_socket_owner.substr(pos + 1);
+
+		struct passwd * pwd = getpwnam(user.c_str());
+		if (pwd == nullptr)
+		{
+			std::cerr << "User not found: " << user << "\n";
+			std::exit(2);
+		}
+		uid_t uid = pwd->pw_uid;
+
+		struct group * grp = getgrnam(group.c_str());
+		if (grp == nullptr)
+		{
+			std::cerr << "Group not found: " << group << "\n";
+			std::exit(2);
+		}
+		gid_t gid = grp->gr_gid;
+
+		if (chown(opt_socket_path.c_str(), uid, gid) != 0)
+		{
+			std::cerr << "chown failure"
+			          << "\n";
+			std::exit(2);
+		}
+
+		// Yeah yeah, printf bad, FIXME later
+		printf("Socket ownership: UID=%d, GID=%d\n", uid, gid);
+	}
+
+	uinput_setup(fd_ui, opt_ui_setup);
+
+	sleep(1);
+
+	const char * xinput_path = "/usr/bin/xinput";
+
+	if (getenv("DISPLAY"))
+	{
+		if (stat(xinput_path, &sbuf) == 0)
+		{
+			pid_t npid = vfork();
+
+			if (npid == 0)
+			{
+				execl(
+				    xinput_path,
+				    "xinput",
+				    "--set-prop",
+				    "pointer:ydotoold virtual device",
+				    "libinput Accel Profile Enabled",
+				    "0,",
+				    "1",
+				    NULL);
+				perror("failed to run xinput command");
+				_exit(2);
+			}
+			else if (npid == -1) { perror("failed to fork"); }
+		}
+		else { printf("xinput command not found in `%s', not disabling mouser pointer acceleration", xinput_path); }
+	}
+
+	puts("READY");
+
+	struct input_event uev;
+
+	while (1)
+	{
+		if (recv(fd_so, &uev, sizeof(uev), 0) == sizeof(uev)) { write(fd_ui, &uev, sizeof(uev)); }
+	}
+}
