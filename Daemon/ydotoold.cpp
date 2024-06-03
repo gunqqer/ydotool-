@@ -703,20 +703,22 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 int main(int argc, char ** argv)
 {
 
-	static std::string opt_socket_path;
+	static std::string opt_socket_path_default;
 
 	// TODO make this do something as the argparse default overrides this
 	char * env_xrd = getenv("XDG_RUNTIME_DIR");
 	if (env_xrd)
 	{
-		opt_socket_path = env_xrd;
-		opt_socket_path += "/ydotool_socket";
+		opt_socket_path_default = env_xrd;
+		opt_socket_path_default += "/ydotool_socket";
 	}
+	else { opt_socket_path_default = "/tmp/.ydotool_socket"; }
 
 	enum ydotool_uinput_setup_options opt_ui_setup = static_cast<ydotool_uinput_setup_options>(ENABLE_REL | ENABLE_KEY);
 
 	static std::string opt_socket_permission;
 	static std::string opt_socket_owner;
+	static std::string opt_socket_path;
 	static bool disableMouse{false};
 	static bool disableKeyboard{false};
 	static bool enableTouch{true};
@@ -725,7 +727,7 @@ int main(int argc, char ** argv)
 	program.add_argument("--socket-path", "-P")
 	    .help("Set socket path")
 	    .nargs(1)
-	    .default_value(std::string("/tmp/.ydotool_socket"))
+	    .default_value(opt_socket_path_default)
 	    .store_into(opt_socket_path);
 	program.add_argument("--socket-owner", "-o")
 	    .help("Set socket owner")
