@@ -71,6 +71,8 @@
 #define VERSION "unknown"
 #endif
 
+// TODO do this better, this is C++ not C
+#define DEVICENAME "ydotool++d virtual device"
 enum ydotool_uinput_setup_options
 {
 	ENABLE_KEY = (1 << 0),
@@ -126,7 +128,7 @@ static void uinput_setup(int fd, enum ydotool_uinput_setup_options setup_opt)
 
 	static const struct uinput_setup usetup = {
 	    .id   = {.bustype = BUS_VIRTUAL, .vendor = 0x2333, .product = 0x6666, .version = 1},
-	    .name = "ydotool++d virtual device",
+	    .name = {DEVICENAME},
 	    .ff_effects_max{}};
 
 	if (ioctl(fd, UI_DEV_SETUP, &usetup))
@@ -318,6 +320,7 @@ int main(int argc, char ** argv)
 
 	sleep(1);
 
+	// TODO check to make sure this actually works on x11
 	const char * xinput_path = "/usr/bin/xinput";
 
 	if (getenv("DISPLAY"))
@@ -329,14 +332,7 @@ int main(int argc, char ** argv)
 			if (npid == 0)
 			{
 				execl(
-				    xinput_path,
-				    "xinput",
-				    "--set-prop",
-				    "pointer:ydotoold virtual device",
-				    "libinput Accel Profile Enabled",
-				    "0,",
-				    "1",
-				    NULL);
+				    xinput_path, "xinput", "--set-prop", DEVICENAME, "libinput Accel Profile Enabled", "0,", "1", NULL);
 				perror("failed to run xinput command");
 				_exit(2);
 			}
