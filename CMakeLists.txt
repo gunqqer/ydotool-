@@ -4,8 +4,9 @@ project(ydotool++ CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -Werror -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -D_GLIBCXX_DEBUG -fsanitize=undefined -fsanitize=address")
-set(CMAKE_LINKER_FLAGS "-fsanitize=address")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -pedantic -Werror -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -D_GLIBCXX_DEBUG -fsanitize=undefined ")
+#-fsanitize=address -Og")
+#set(CMAKE_LINKER_FLAGS "-fsanitize=address")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -31,10 +32,10 @@ endif()
 set(SOURCE_FILES_DAEMON Daemon/ydotoold.cpp)
 set(SOURCE_FILES_CLIENT Client/ydotool.cpp Client/tool_click.cpp Client/tool_mousemove.cpp Client/tool_type.cpp Client/tool_key.cpp Client/tool_stdin.cpp)
 
-add_executable(ydotoold ${SOURCE_FILES_DAEMON})
-set_target_properties(ydotoold PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(ydotoold argparse)
-install(TARGETS ydotoold DESTINATION ${CMAKE_INSTALL_BINDIR})
+add_executable(ydotool++d ${SOURCE_FILES_DAEMON})
+set_target_properties(ydotool++d PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(ydotool++d argparse)
+install(TARGETS ydotool++d DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(ydotool ${SOURCE_FILES_CLIENT})
 set_target_properties(ydotool PROPERTIES LINKER_LANGUAGE CXX)
